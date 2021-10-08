@@ -1,0 +1,13 @@
+1. unzip and untar
+    gunzip build.tar.gz 
+    tar -xvf build.tar
+
+2. inter to build director
+3. change to bin directory
+
+   cd build/bin
+
+
+4. run the program with below command
+
+./mqtt_demo_mutual_auth

@@ -7,7 +7,7 @@ include( ${CMAKE_SOURCE_DIR}/libraries/standard/coreMQTT/mqttFilePaths.cmake )
 include( ${CMAKE_SOURCE_DIR}/libraries/standard/backoffAlgorithm/backoffAlgorithmFilePaths.cmake )
 
 # CPP files are searched for supporting CI build checks that verify C++ linkage of the coreMQTT library
-file( GLOB DEMO_FILE "${DEMO_NAME}.c*" )
+file( GLOB DEMO_FILE "*.c" )
 
 # Demo target.
 add_executable(
@@ -18,12 +18,25 @@ add_executable(
         ${BACKOFF_ALGORITHM_SOURCES}
 )
 
+#set(THREADS_PREFER_PTHREAD_FLAG ON)
+#find_package(Threads REQUIRED)
+target_link_directories(
+    ${DEMO_NAME}
+    PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/sdk/mercury/lib"
+    )
+
 target_link_libraries(
     ${DEMO_NAME}
     PRIVATE
         clock_posix
         openssl_posix
+        -pthread
+        mercuryapi
+        ltkc
+        ltkctm
 )
+
 
 target_include_directories(
     ${DEMO_NAME}
@@ -32,6 +45,7 @@ target_include_directories(
         ${BACKOFF_ALGORITHM_INCLUDE_PUBLIC_DIRS}
         ${CMAKE_CURRENT_LIST_DIR}
         ${LOGGING_INCLUDE_DIRS}
+	    "${CMAKE_CURRENT_LIST_DIR}/sdk/mercury/include"
 )
 
 set_macro_definitions(TARGETS ${DEMO_NAME}

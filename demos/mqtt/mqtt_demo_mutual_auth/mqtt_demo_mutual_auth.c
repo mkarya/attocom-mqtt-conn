@@ -55,6 +55,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
 
 /* POSIX includes. */
 #include <unistd.h>
@@ -74,6 +75,10 @@
 
 /* Clock for timer. */
 #include "clock.h"
+
+
+pthread_mutex_t mutexsendenable;
+int readyTosend = 0;
 
 /**
  * These configuration settings are required to run the mutual auth demo.
@@ -217,8 +222,17 @@
 
 /**
  * @brief The MQTT message published in this example.
- */
+
 #define MQTT_EXAMPLE_MESSAGE                "Hello World!"
+*/
+
+struct readerData {
+    char buffer[1024];
+    uint16_t length;
+};
+/*char MQTT_EXAMPLE_MESSAGE[1024];*/
+
+struct readerData dataTosend;
 
 /**
  * @brief The length of the MQTT message published in this example.
@@ -403,7 +417,7 @@ static int connectToServerWithBackoffRetries( NetworkContext_t * pNetworkContext
  *
  * @return EXIT_FAILURE on failure; EXIT_SUCCESS on success.
  */
-static int subscribePublishLoop( MQTTContext_t * pMqttContext );
+static int subscribePublishLoop( MQTTContext_t * pMqttContext, struct readerData *  );
 
 /**
  * @brief The function to handle the incoming publishes.
@@ -1242,7 +1256,7 @@ static int unsubscribeFromTopic( MQTTContext_t * pMqttContext )
 
 /*-----------------------------------------------------------*/
 
-static int publishToTopic( MQTTContext_t * pMqttContext )
+static int publishToTopic( MQTTContext_t * pMqttContext)
 {
     int returnStatus = EXIT_SUCCESS;
     MQTTStatus_t mqttStatus = MQTTSuccess;
@@ -1266,8 +1280,8 @@ static int publishToTopic( MQTTContext_t * pMqttContext )
         outgoingPublishPackets[ publishIndex ].pubInfo.qos = MQTTQoS1;
         outgoingPublishPackets[ publishIndex ].pubInfo.pTopicName = MQTT_EXAMPLE_TOPIC;
         outgoingPublishPackets[ publishIndex ].pubInfo.topicNameLength = MQTT_EXAMPLE_TOPIC_LENGTH;
-        outgoingPublishPackets[ publishIndex ].pubInfo.pPayload = MQTT_EXAMPLE_MESSAGE;
-        outgoingPublishPackets[ publishIndex ].pubInfo.payloadLength = MQTT_EXAMPLE_MESSAGE_LENGTH;
+        outgoingPublishPackets[ publishIndex ].pubInfo.pPayload = dataTosend.buffer;
+        outgoingPublishPackets[ publishIndex ].pubInfo.payloadLength = dataTosend.length;
 
         /* Get a new packet id. */
         outgoingPublishPackets[ publishIndex ].packetId = MQTT_GetPacketId( pMqttContext );
@@ -1338,7 +1352,7 @@ static int initializeMqtt( MQTTContext_t * pMqttContext,
 
 /*-----------------------------------------------------------*/
 
-static int subscribePublishLoop( MQTTContext_t * pMqttContext )
+static int subscribePublishLoop( MQTTContext_t * pMqttContext , struct readerData * datatosend)
 {
     int returnStatus = EXIT_SUCCESS;
     MQTTStatus_t mqttStatus = MQTTSuccess;
@@ -1397,35 +1411,43 @@ static int subscribePublishLoop( MQTTContext_t * pMqttContext )
     {
         /* Publish messages with QOS1, receive incoming messages and
          * send keep alive messages. */
-        for( publishCount = 0; publishCount < maxPublishCount; publishCount++ )
+        for( ;; )
         {
-            LogInfo( ( "Sending Publish to the MQTT topic %.*s.",
-                       MQTT_EXAMPLE_TOPIC_LENGTH,
-                       MQTT_EXAMPLE_TOPIC ) );
-            returnStatus = publishToTopic( pMqttContext );
+            if (readyTosend == 1 ) {
+                LogInfo( ( "Sending Publish to the MQTT topic %.*s.",
+                           MQTT_EXAMPLE_TOPIC_LENGTH,
+                           MQTT_EXAMPLE_TOPIC ) );
 
-            /* Calling MQTT_ProcessLoop to process incoming publish echo, since
-             * application subscribed to the same topic the broker will send
-             * publish message back to the application. This function also
-             * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
-             * has expired since the last MQTT packet sent and receive
-             * ping responses. */
-            mqttStatus = MQTT_ProcessLoop( pMqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
+                pthread_mutex_lock(&mutexsendenable);
+                printf("sending data from as %s", dataTosend.buffer);
+                returnStatus = publishToTopic( pMqttContext );
 
-            /* For any error in #MQTT_ProcessLoop, exit the loop and disconnect
-             * from the broker. */
-            if( mqttStatus != MQTTSuccess )
-            {
-                LogError( ( "MQTT_ProcessLoop returned with status = %s.",
-                            MQTT_Status_strerror( mqttStatus ) ) );
-                returnStatus = EXIT_FAILURE;
-                break;
+
+                /* Calling MQTT_ProcessLoop to process incoming publish echo, since
+                 * application subscribed to the same topic the broker will send
+                 * publish message back to the application. This function also
+                 * sends ping request to broker if MQTT_KEEP_ALIVE_INTERVAL_SECONDS
+                 * has expired since the last MQTT packet sent and receive
+                 * ping responses. */
+                mqttStatus = MQTT_ProcessLoop( pMqttContext, MQTT_PROCESS_LOOP_TIMEOUT_MS );
+
+                /* For any error in #MQTT_ProcessLoop, exit the loop and disconnect
+                 * from the broker. */
+                if( mqttStatus != MQTTSuccess )
+                {
+                    LogError( ( "MQTT_ProcessLoop returned with status = %s.",
+                                MQTT_Status_strerror( mqttStatus ) ) );
+                    returnStatus = EXIT_FAILURE;
+                    break;
+                }
+
+                LogInfo( ( "Delay before continuing to next iteration.\n\n" ) );
+
+                /* Leave connection idle for some time. */
+                //sleep( DELAY_BETWEEN_PUBLISHES_SECONDS );
+                readyTosend = 0;
+                pthread_mutex_unlock(&mutexsendenable);
             }
-
-            LogInfo( ( "Delay before continuing to next iteration.\n\n" ) );
-
-            /* Leave connection idle for some time. */
-            sleep( DELAY_BETWEEN_PUBLISHES_SECONDS );
         }
     }
 
@@ -1475,6 +1497,56 @@ static int subscribePublishLoop( MQTTContext_t * pMqttContext )
     return returnStatus;
 }
 
+//int tcp_connection(struct readerData * datastruct) {
+//	int socket_desc;
+//	struct sockaddr_in server;
+//	char *message , server_reply[6000];
+//	//Create socket
+//	socket_desc = socket(AF_INET , SOCK_STREAM , 0);
+//	if (socket_desc == -1)
+//	{
+//		printf("Could not create socket");
+//	}
+//
+//	//ip address of www.msn.com (get by doing a ping www.msn.com at terminal)
+//	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+//	server.sin_family = AF_INET;
+//	server.sin_port = htons( 8080);
+//
+//
+//
+//
+//	//Connect to remote server
+//	if (connect(socket_desc , (struct sockaddr *)&server , sizeof(server)) < 0)
+//	{
+//		puts("connect error");
+//		return 1;
+//	}
+//
+//	puts("Connected\n");
+//
+//	//Send some data
+//	message = "start";
+//	if( send(socket_desc , message , strlen(message) , 0) < 0)
+//	{
+//		puts("Send failed");
+//		return 1;
+//	}
+//	puts("Data Send\n");
+//
+//	//Receive a reply from the server
+//	uint16_t length = recv(socket_desc, server_reply , 1024 , 0);
+//	if ( length > 0)
+//	{
+//	    printf("data received on socker %s\n", datastruct->buffer);
+//	    memcpy(datastruct->buffer, server_reply, length);
+//	}
+//
+//	datastruct->length = length;
+//
+//	return 0;
+//}
+
 /*-----------------------------------------------------------*/
 
 /**
@@ -1491,8 +1563,7 @@ static int subscribePublishLoop( MQTTContext_t * pMqttContext )
  * are resent in this demo. In order to support retransmission all the outgoing
  * publishes are stored until a PUBACK is received.
  */
-int main( int argc,
-          char ** argv )
+void *push(void *data)
 {
     int returnStatus = EXIT_SUCCESS;
     MQTTContext_t mqttContext = { 0 };
@@ -1500,9 +1571,10 @@ int main( int argc,
     OpensslParams_t opensslParams = { 0 };
     bool clientSessionPresent = false, brokerSessionPresent = false;
     struct timespec tp;
+    uint8_t counter;
 
-    ( void ) argc;
-    ( void ) argv;
+//    ( void ) argc;
+//    ( void ) argv;
 
     /* Set the pParams member of the network context with desired transport. */
     networkContext.pParams = &opensslParams;
@@ -1567,7 +1639,10 @@ int main( int argc,
                 }
 
                 /* If TLS session is established, execute Subscribe/Publish loop. */
-                returnStatus = subscribePublishLoop( &mqttContext );
+                struct readerData mydata;
+
+                returnStatus = subscribePublishLoop(&mqttContext, &mydata);
+                /*returnStatus = subscribePublishLoop( &mqttContext ); */
             }
 
             if( returnStatus == EXIT_SUCCESS )
@@ -1584,7 +1659,27 @@ int main( int argc,
         }
     }
 
-    return returnStatus;
+    return NULL;
+}
+
+void startpush() {
+    pthread_t threadId;
+    pthread_create(&threadId,NULL, push, NULL);
+    pthread_join(threadId,NULL);
+
+}
+
+void senddata ( char *buffer, int length) {
+     if (readyTosend == 0) {
+            pthread_mutex_lock(&mutexsendenable);
+            printf("please type data to send");
+       	    memset(dataTosend.buffer, 0, 1024*sizeof(dataTosend.buffer[0]));
+            dataTosend.length = length;
+            memcpy(dataTosend.buffer, buffer, length);
+            readyTosend = 1;
+            pthread_mutex_unlock(&mutexsendenable);
+       }
+
 }
 
 /*-----------------------------------------------------------*/

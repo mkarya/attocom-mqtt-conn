@@ -1,0 +1,4 @@
+in current directory
+mkdir build && cd build
+cmake ..
+make mqtt_demo_mutual_auth 
