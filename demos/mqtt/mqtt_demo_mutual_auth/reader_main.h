@@ -19,6 +19,7 @@ struct rfid_tag_type {
 	char  tag_id[64];
 };
 
+extern char server_buffer[65536];
 
 int reader_main (char *, struct reader_info_type *rdr_info );
 int readasync_main(int rd_argc, char *rd_argv[], struct rfid_tag_type *);

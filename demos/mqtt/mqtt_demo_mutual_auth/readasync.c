@@ -15,7 +15,8 @@
 #include "reader_main.h"
 
 
-struct rfid_tag_type rfid_tag_loc[1000] = {0};  
+struct rfid_tag_type rfid_tag_loc[1024] = {0};  
+static uint32_t temp = 0;
 
 /* Enable this to use transportListener */
 #ifndef USE_TRANSPORT_LISTENER
@@ -97,6 +98,7 @@ int readasync_main(int argc, char *argv[], struct rfid_tag_type* rfid_tag )
 #endif
 
   uint32_t cnt = 0;
+  temp = 0;
 
   if (argc < 2)
   {
@@ -225,7 +227,7 @@ int readasync_main(int argc, char *argv[], struct rfid_tag_type* rfid_tag )
   checkerr(rp, ret, 1, "stopping reading");
 
   TMR_destroy(rp);
-  for (cnt = 0; cnt < 10; cnt++) {
+  for (cnt = 0; cnt < 512; cnt++) {
       strcpy (rfid_tag[cnt].tag_id, rfid_tag_loc[cnt].tag_id);
   } 
   return 0;
@@ -238,7 +240,6 @@ void
 callback(TMR_Reader *reader, const TMR_TagReadData *t, void *cookie)
 {
   char epcStr[128];
-  static uint32_t temp = 0;
 
   TMR_bytesToHex(t->tag.epc, t->tag.epcByteCount, epcStr);
   //printf("TAG-ID EPC: %s\n", epcStr);

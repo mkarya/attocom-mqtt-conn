@@ -233,6 +233,7 @@ struct readerData {
 /*char MQTT_EXAMPLE_MESSAGE[1024];*/
 
 struct readerData dataTosend;
+bool mqtt_connected = false;
 
 /**
  * @brief The length of the MQTT message published in this example.
@@ -1609,6 +1610,7 @@ void *push(void *data)
                 LogError( ( "Failed to connect to MQTT broker %.*s.",
                             AWS_IOT_ENDPOINT_LENGTH,
                             AWS_IOT_ENDPOINT ) );
+		mqtt_connected = false;
             }
             else
             {
@@ -1616,6 +1618,7 @@ void *push(void *data)
                  * Once this flag is set, MQTT connect in the following iterations of
                  * this demo will be attempted without requesting for a clean session. */
                 clientSessionPresent = true;
+		mqtt_connected = true;
 
                 /* Check if session is present and if there are any outgoing publishes
                  * that need to resend. This is only valid if the broker is
@@ -1636,6 +1639,7 @@ void *push(void *data)
                     /* Clean up the outgoing publishes waiting for ack as this new
                      * connection doesn't re-establish an existing session. */
                     cleanupOutgoingPublishes();
+		    mqtt_connected = false;
                 }
 
                 /* If TLS session is established, execute Subscribe/Publish loop. */
@@ -1665,7 +1669,8 @@ void *push(void *data)
 void startpush() {
     pthread_t threadId;
     pthread_create(&threadId,NULL, push, NULL);
-    pthread_join(threadId,NULL);
+    //pthread_join(threadId,NULL);
+    pthread_detach(threadId);
 
 }
 

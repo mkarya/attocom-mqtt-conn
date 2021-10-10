@@ -155,17 +155,17 @@ if(DOWNLOAD_CERTS)
     endif()
     file(MAKE_DIRECTORY ${CERT_DOWNLOAD_DIR})
     # Download the Amazon Root CA certificate.
-    message( "Downloading the Amazon Root CA certificate..." )
-    execute_process(
-        COMMAND curl --url https://www.amazontrust.com/repository/AmazonRootCA1.pem
-        -o ${CERT_DOWNLOAD_DIR}/AmazonRootCA1.crt
-    )
+    message( "not Downloading the Amazon Root CA certificate..., using local" )
+    #execute_process(
+	    #COMMAND curl --url https://www.amazontrust.com/repository/AmazonRootCA1.pem
+	    #-o ${CERT_DOWNLOAD_DIR}/AmazonRootCA1.crt
+	    #)
     # Download the Baltimore Cybertrust Root CA certificate.
-    message( "Downloading the Baltimore Cybertrust Root CA certificate..." )
-    execute_process(
-        COMMAND curl --url https://cacerts.digicert.com/BaltimoreCyberTrustRoot.crt.pem
-        -o ${CERT_DOWNLOAD_DIR}/BaltimoreCyberTrustRoot.crt
-    )
+    message( "not Downloading the Baltimore Cybertrust Root CA certificate..., using local" )
+    #execute_process(
+	    #COMMAND curl --url https://cacerts.digicert.com/BaltimoreCyberTrustRoot.crt.pem
+	    #-o ${CERT_DOWNLOAD_DIR}/BaltimoreCyberTrustRoot.crt
+	    #)
     # Copy certificates to the build directory.
     file(COPY "${CERT_DOWNLOAD_DIR}"
          DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
